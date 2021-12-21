@@ -3,10 +3,10 @@
 #include <esp_now.h>
 
 #define SWITCH 32
-#define LED 33
+#define LED 14
 
 #define CENTRAL_ID 0
-#define USER_ID 2
+#define USER_ID 1
 
 typedef struct messageStruct
 {
@@ -15,7 +15,7 @@ typedef struct messageStruct
 } messageStruct;
 
 //-------------------------Variable Declarations-------------------------
-uint8_t macAddressCentral[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
+uint8_t macAddressCentral[] = {0x30, 0xAE, 0xA4, 0x96, 0xC9, 0x38};
 
 bool CalledByCentral = false;
 
@@ -109,6 +109,7 @@ void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, in
   else if (incomingMessage.senderID == CENTRAL_ID && incomingMessage.message == "Reset")
   {
     CalledByCentral = false;
+    digitalWrite(LED, LOW);
     Serial.println("Reset data received from central");
   }
   else
