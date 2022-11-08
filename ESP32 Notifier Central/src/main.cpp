@@ -21,7 +21,8 @@ typedef struct messageStruct
 } messageStruct;
 
 //-------------------------Variable Declarations-------------------------
-uint8_t macAddressAndreas[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
+uint8_t macAddressAndreasRoom[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
+uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
 uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
 uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
 
@@ -52,21 +53,27 @@ void setup()
   outgoingMessage.senderID = CENTRAL_ID;
   outgoingMessage.message = "Call";
 
-  WiFi.mode(WIFI_MODE_STA);     //to start wifi before initialising ESP-NOW is a requirement
-  if (esp_now_init() != ESP_OK) //checking if ESP_NOW successfully started
+  WiFi.mode(WIFI_MODE_STA);     // to start wifi before initialising ESP-NOW is a requirement
+  if (esp_now_init() != ESP_OK) // checking if ESP_NOW successfully started
   {
     Serial.println("Error initialising ESP-NOW");
     return;
   }
 
-  esp_now_peer_info_t newPeer;                     //creating new peer
-  memcpy(newPeer.peer_addr, macAddressAndreas, 6); //copying given adress into peer_addr
+  esp_now_peer_info_t newPeer;                         // creating new peer
+  memcpy(newPeer.peer_addr, macAddressAndreasRoom, 6); // copying given adress into peer_addr
   newPeer.channel = 0;
   newPeer.encrypt = false;
   newPeer.ifidx = WIFI_IF_STA;
-  if (esp_now_add_peer(&newPeer) != ESP_OK) //checking if peer was successfully created
+  if (esp_now_add_peer(&newPeer) != ESP_OK) // checking if peer was successfully created
   {
-    Serial.println("Failed to add Andreas peer");
+    Serial.println("Failed to add Andreas bedroom peer");
+    return;
+  }
+  memcpy(newPeer.peer_addr, macAddressAndreasStudy, 6);
+  if (esp_now_add_peer(&newPeer) != ESP_OK)
+  {
+    Serial.println("Failed to add Andreas study room peer");
     return;
   }
   memcpy(newPeer.peer_addr, macAddressJasper, 6);
@@ -92,7 +99,7 @@ void loop()
   {
     Serial.println("Sending Call");
     outgoingMessage.message = "Call";
-    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); //when peer_addr = 0 -> send to all known peers
+    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
   }
   else if (digitalRead(RESET_SWITCH) == LOW)
   {
