@@ -13,3 +13,5 @@ Needs these lines of code:
   }`
 
 Client USER_ID needs to be set to 2.
+Client SWITCH needs to be set to 15.
+Client LED needs to be set to 4.
