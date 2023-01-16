@@ -7,5 +7,7 @@
         "unordered_set": "cpp",
         "vector": "cpp",
         "initializer_list": "cpp"
-    }
+    },
+    "makefile.compileCommandsPath": ".vscode/compile_commands.json",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\.vscode\\compile_commands.json"
 }
