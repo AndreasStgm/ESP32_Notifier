@@ -2,17 +2,32 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
-#define SEND_SWITCH 32
-#define RESET_SWITCH 33
-#define STATUS_LED 14
-#define JASPER_LED 25
-#define ANDREAS_LED 26
-#define BART_LED 27
+const uint8_t SEND_SWITCH = 32;
+const uint8_t RESET_SWITCH = 33;
+const uint8_t STATUS_LED = 14;
+const uint8_t JASPER_LED = 25;
+const uint8_t ANDREAS_LED = 26;
+const uint8_t BART_LED = 27;
 
-#define CENTRAL_ID 0
-#define ANDREAS_ID 1
-#define JASPER_ID 2
-#define BART_ID 3
+const uint8_t CENTRAL_ID = 0;
+const uint8_t ANDREAS_ID = 1;
+const uint8_t JASPER_ID = 2;
+const uint8_t BART_ID = 3;
+
+enum class ButtonState
+{
+  RELEASED,
+  PRESSED,
+  LONG_PRESSED
+};
+
+enum class DeviceState
+{
+  WAITING,
+  SHORT_PRESS,
+  LONG_PRESS,
+  RESET
+};
 
 typedef struct messageStruct
 {
@@ -21,10 +36,17 @@ typedef struct messageStruct
 } messageStruct;
 
 //-------------------------Variable Declarations-------------------------
-uint8_t macAddressAndreasRoom[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
-uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
-uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
-uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
+const uint8_t debounceTime = 50;
+const uint16_t longPressTime = 1000;
+ButtonState sendButtonState = ButtonState::RELEASED; // 0 = released; 1 = short press; 2 = long press
+ButtonState resetButtonState = ButtonState::RELEASED;
+
+DeviceState currentState = DeviceState::WAITING;
+
+const uint8_t macAddressAndreasRoom[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
+const uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
+const uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
+const uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
 
 bool responseAndreas = false;
 bool responseJasper = false;
@@ -33,12 +55,212 @@ bool responseBart = false;
 messageStruct incomingMessage;
 messageStruct outgoingMessage;
 
-//-------------------------Function Declarations-------------------------
-void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status);
+const uint8_t ledArray[] = {JASPER_LED, BART_LED, ANDREAS_LED};
+const uint8_t idArray[] = {JASPER_ID, BART_ID, ANDREAS_ID};
+uint8_t currentPositionInArray = 0;
+bool oneUserSelectionMode = false;
 
+//-------------------------Function Declarations-------------------------
+void sendStateChangeISR();
+void resetStateChangeISR();
+
+void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, int incomingDataLength);
 
-//-------------------------
+void shortPressHandler();
+void longPressHandler();
+void resetHandler();
+void waitingHandler();
+
+void stateComplete();
+void flashStatusLed(uint8_t flashAmount, uint16_t delayTime);
+
+//-------------------------ISR's-------------------------
+void sendStateChangeISR()
+{
+  static unsigned long last_cycle_interrupt_time = 0;
+  unsigned long cycle_interrupt_time = millis();
+
+  if (cycle_interrupt_time - last_cycle_interrupt_time > longPressTime)
+  {
+    if (sendButtonState == ButtonState::RELEASED) // we enter the pressed state
+    {
+      sendButtonState = ButtonState::PRESSED;
+    }
+    else if (sendButtonState == ButtonState::PRESSED) // we enter the release state of a long press
+    {
+      sendButtonState = ButtonState::RELEASED;
+
+      currentState = DeviceState::LONG_PRESS;
+    }
+  }
+  else if (cycle_interrupt_time - last_cycle_interrupt_time > debounceTime)
+  {
+    if (sendButtonState == ButtonState::RELEASED) // we enter the pressed state
+    {
+      sendButtonState = ButtonState::PRESSED;
+    }
+    else if (sendButtonState == ButtonState::PRESSED) // we enter the release state of a short press
+    {
+      sendButtonState = ButtonState::RELEASED;
+
+      currentState = DeviceState::SHORT_PRESS;
+    }
+  }
+
+  last_cycle_interrupt_time = cycle_interrupt_time;
+}
+
+void resetStateChangeISR()
+{
+  static unsigned long last_cycle_interrupt_time = 0;
+  unsigned long cycle_interrupt_time = millis();
+
+  if (cycle_interrupt_time - last_cycle_interrupt_time > debounceTime)
+  {
+    if (resetButtonState == ButtonState::RELEASED) // we enter the pressed state
+    {
+      resetButtonState = ButtonState::PRESSED;
+    }
+    else if (resetButtonState == ButtonState::PRESSED) // we enter the release state of a short press
+    {
+      resetButtonState = ButtonState::RELEASED;
+
+      currentState = DeviceState::RESET;
+    }
+  }
+
+  last_cycle_interrupt_time = cycle_interrupt_time;
+}
+
+//-------------------------Functions-------------------------
+void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status)
+{
+  if (status == ESP_NOW_SEND_SUCCESS)
+  {
+    Serial.println("Delivery Successful");
+    flashStatusLed(1, 100);
+  }
+  else
+  {
+    for (uint8_t i = 0; i < 6; i++)
+    {
+      digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
+    }
+  }
+}
+
+void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, int incomingDataLength)
+{
+  memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
+
+  if (incomingMessage.senderID == ANDREAS_ID && incomingMessage.message == "Response")
+  {
+    Serial.println("Return data received from Andreas");
+    responseAndreas = true;
+  }
+  else if (incomingMessage.senderID == JASPER_ID && incomingMessage.message == "Response")
+  {
+    Serial.println("Return data received from Jasper");
+    responseJasper = true;
+  }
+  else if (incomingMessage.senderID == BART_ID && incomingMessage.message == "Response")
+  {
+    Serial.println("Return data received from Bart");
+    responseBart = true;
+  }
+  else
+  {
+    Serial.println("Sender of data not recognized");
+  }
+}
+
+void stateHandler()
+{
+  switch (currentState)
+  {
+  case DeviceState::SHORT_PRESS:
+    shortPressHandler();
+    break;
+
+  case DeviceState::LONG_PRESS:
+    longPressHandler();
+    break;
+
+  case DeviceState::RESET:
+    resetHandler();
+    break;
+
+  case DeviceState::WAITING:
+    waitingHandler();
+    break;
+
+  default:
+    Serial.println("<StateHandler function> default case: you should not be here.");
+    break;
+  }
+}
+
+//-------------------------SHORT PRESS-------------------------
+void shortPressHandler()
+{
+  Serial.println("Sending Call");
+
+  outgoingMessage.message = "Call";
+  esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
+
+  stateComplete();
+}
+
+//-------------------------LONG PRESS-------------------------
+void longPressHandler()
+{
+  flashStatusLed(5, 100);
+
+  stateComplete();
+}
+
+//-------------------------RESET-------------------------
+void resetHandler()
+{
+  Serial.println("Resetting states");
+
+  outgoingMessage.message = "Reset";
+  esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+  responseAndreas = false;
+  responseJasper = false;
+  responseBart = false;
+
+  stateComplete();
+}
+
+//-------------------------WAITING-------------------------
+void waitingHandler()
+{
+
+  digitalWrite(ANDREAS_LED, responseAndreas);
+  digitalWrite(JASPER_LED, responseJasper);
+  digitalWrite(BART_LED, responseBart);
+}
+
+//-------------------------Helper Functions-------------------------
+void stateComplete()
+{
+  currentState = DeviceState::WAITING;
+
+  digitalWrite(STATUS_LED, LOW);
+}
+
+void flashStatusLed(uint8_t flashAmount, uint16_t delayTime)
+{
+  for (uint8_t i = 0; i < flashAmount * 2; i++)
+  {
+    digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
+    delay(delayTime);
+  }
+}
+
+//=========================SETUP=========================
 
 void setup()
 {
@@ -49,6 +271,9 @@ void setup()
   pinMode(ANDREAS_LED, OUTPUT);
   pinMode(JASPER_LED, OUTPUT);
   pinMode(BART_LED, OUTPUT);
+
+  attachInterrupt(digitalPinToInterrupt(SEND_SWITCH), sendStateChangeISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(RESET_SWITCH), resetStateChangeISR, CHANGE);
 
   outgoingMessage.senderID = CENTRAL_ID;
   outgoingMessage.message = "Call";
@@ -93,69 +318,30 @@ void setup()
   esp_now_register_recv_cb(OnDataRecv);
 }
 
+//=========================LOOP=========================
 void loop()
 {
-  if (digitalRead(SEND_SWITCH) == LOW)
-  {
-    Serial.println("Sending Call");
-    outgoingMessage.message = "Call";
-    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
-  }
-  else if (digitalRead(RESET_SWITCH) == LOW)
-  {
-    Serial.println("Resetting states");
-    outgoingMessage.message = "Reset";
-    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-    responseAndreas = false;
-    responseJasper = false;
-    responseBart = false;
-  }
-  digitalWrite(ANDREAS_LED, responseAndreas);
-  digitalWrite(JASPER_LED, responseJasper);
-  digitalWrite(BART_LED, responseBart);
-  delay(100);
-}
+  stateHandler();
 
-//-------------------------Functions-------------------------
-void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status)
-{
-  if (status == ESP_NOW_SEND_SUCCESS)
-  {
-    Serial.println("Delivery Successful");
-    digitalWrite(STATUS_LED, HIGH);
-    delay(100);
-    digitalWrite(STATUS_LED, LOW);
-  }
-  else
-  {
-    for (uint8_t i = 0; i < 6; i++)
-    {
-      digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
-    }
-  }
-}
+  delay(1);
 
-void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, int incomingDataLength)
-{
-  memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
-
-  if (incomingMessage.senderID == ANDREAS_ID && incomingMessage.message == "Response")
-  {
-    Serial.println("Return data received from Andreas");
-    responseAndreas = true;
-  }
-  else if (incomingMessage.senderID == JASPER_ID && incomingMessage.message == "Response")
-  {
-    Serial.println("Return data received from Jasper");
-    responseJasper = true;
-  }
-  else if (incomingMessage.senderID == BART_ID && incomingMessage.message == "Response")
-  {
-    Serial.println("Return data received from Bart");
-    responseBart = true;
-  }
-  else
-  {
-    Serial.println("Sender of data not recognized");
-  }
+  // if (digitalRead(SEND_SWITCH) == LOW)
+  // {
+  //   Serial.println("Sending Call");
+  //   outgoingMessage.message = "Call";
+  //   esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
+  // }
+  // else if (digitalRead(RESET_SWITCH) == LOW)
+  // {
+  //   Serial.println("Resetting states");
+  //   outgoingMessage.message = "Reset";
+  //   esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+  //   responseAndreas = false;
+  //   responseJasper = false;
+  //   responseBart = false;
+  // }
+  // digitalWrite(ANDREAS_LED, responseAndreas);
+  // digitalWrite(JASPER_LED, responseJasper);
+  // digitalWrite(BART_LED, responseBart);
+  // delay(100);
 }
