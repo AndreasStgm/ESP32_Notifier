@@ -229,7 +229,6 @@ void shortPressHandler()
 //-------------------------LONG PRESS-------------------------
 void longPressHandler()
 {
-
   if (!oneUserSelectionMode)
   {
     Serial.println("One user send mode started.");
@@ -237,8 +236,28 @@ void longPressHandler()
   }
   else
   {
+    outgoingMessage.message = "Call";
+
+    switch (idArray[currentPositionInArrays])
+    {
+    case ANDREAS_ID:
+      esp_now_send(macAddressAndreasRoom, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+      esp_now_send(macAddressAndreasStudy, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+      break;
+    case JASPER_ID:
+      esp_now_send(macAddressJasper, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+      break;
+    case BART_ID:
+      esp_now_send(macAddressBart, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+      break;
+    default:
+      Serial.println("<One user send switch> default case: you should not be here.");
+      break;
+    }
+
     Serial.println("One user send mode ended.");
     oneUserSelectionMode = false;
+    currentPositionInArrays = 0;
   }
 
   stateComplete();
