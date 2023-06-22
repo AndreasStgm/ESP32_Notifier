@@ -57,7 +57,7 @@ messageStruct outgoingMessage;
 
 const uint8_t ledArray[] = {JASPER_LED, BART_LED, ANDREAS_LED};
 const uint8_t idArray[] = {JASPER_ID, BART_ID, ANDREAS_ID};
-uint8_t currentPositionInArray = 0;
+uint8_t currentPositionInArrays = 0;
 bool oneUserSelectionMode = false;
 
 //-------------------------Function Declarations-------------------------
@@ -143,10 +143,8 @@ void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status)
   }
   else
   {
-    for (uint8_t i = 0; i < 6; i++)
-    {
-      digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
-    }
+    Serial.println("Delivery Failed");
+    flashStatusLed(1, 500);
   }
 }
 
@@ -204,10 +202,26 @@ void stateHandler()
 //-------------------------SHORT PRESS-------------------------
 void shortPressHandler()
 {
-  Serial.println("Sending Call");
+  if (oneUserSelectionMode)
+  {
+    Serial.println("Selecting next user to send call to.");
+    currentPositionInArrays++;
+    if (currentPositionInArrays >= sizeof(ledArray))
+    {
+      currentPositionInArrays = 0;
+    }
 
-  outgoingMessage.message = "Call";
-  esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
+    for (uint8_t i = 0; i < sizeof(ledArray); i++)
+    {
+      digitalWrite(ledArray[i], LOW);
+    }
+  }
+  else
+  {
+    Serial.println("Sending call to all users.");
+    outgoingMessage.message = "Call";
+    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
+  }
 
   stateComplete();
 }
@@ -215,7 +229,17 @@ void shortPressHandler()
 //-------------------------LONG PRESS-------------------------
 void longPressHandler()
 {
-  flashStatusLed(5, 100);
+
+  if (!oneUserSelectionMode)
+  {
+    Serial.println("One user send mode started.");
+    oneUserSelectionMode = true;
+  }
+  else
+  {
+    Serial.println("One user send mode ended.");
+    oneUserSelectionMode = false;
+  }
 
   stateComplete();
 }
@@ -231,16 +255,26 @@ void resetHandler()
   responseJasper = false;
   responseBart = false;
 
+  oneUserSelectionMode = false;
+  currentPositionInArrays = 0;
+
   stateComplete();
 }
 
 //-------------------------WAITING-------------------------
 void waitingHandler()
 {
-
-  digitalWrite(ANDREAS_LED, responseAndreas);
-  digitalWrite(JASPER_LED, responseJasper);
-  digitalWrite(BART_LED, responseBart);
+  if (oneUserSelectionMode)
+  {
+    digitalWrite(ledArray[currentPositionInArrays], !digitalRead(ledArray[currentPositionInArrays]));
+    delay(500);
+  }
+  else
+  {
+    digitalWrite(ANDREAS_LED, responseAndreas);
+    digitalWrite(JASPER_LED, responseJasper);
+    digitalWrite(BART_LED, responseBart);
+  }
 }
 
 //-------------------------Helper Functions-------------------------
@@ -324,24 +358,4 @@ void loop()
   stateHandler();
 
   delay(1);
-
-  // if (digitalRead(SEND_SWITCH) == LOW)
-  // {
-  //   Serial.println("Sending Call");
-  //   outgoingMessage.message = "Call";
-  //   esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
-  // }
-  // else if (digitalRead(RESET_SWITCH) == LOW)
-  // {
-  //   Serial.println("Resetting states");
-  //   outgoingMessage.message = "Reset";
-  //   esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-  //   responseAndreas = false;
-  //   responseJasper = false;
-  //   responseBart = false;
-  // }
-  // digitalWrite(ANDREAS_LED, responseAndreas);
-  // digitalWrite(JASPER_LED, responseJasper);
-  // digitalWrite(BART_LED, responseBart);
-  // delay(100);
 }
