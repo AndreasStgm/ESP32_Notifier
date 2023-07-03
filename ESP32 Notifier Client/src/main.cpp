@@ -2,11 +2,11 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
-#define SWITCH 32
-#define LED 14
+#define SWITCH 15
+#define LED 4
 
 #define CENTRAL_ID 0
-#define USER_ID 1
+#define USER_ID 2
 
 #define RELEASED 0
 #define PRESSED 1
