@@ -67,6 +67,7 @@ void resetStateChangeISR();
 void OnDataSent(const uint8_t *sentToMacAddress, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, int incomingDataLength);
 
+void stateHandler();
 void shortPressHandler();
 void longPressHandler();
 void resetHandler();
@@ -74,6 +75,72 @@ void waitingHandler();
 
 void stateComplete();
 void flashStatusLed(uint8_t flashAmount, uint16_t delayTime);
+
+//=========================SETUP=========================
+
+void setup()
+{
+  Serial.begin(115200);
+  pinMode(STATUS_LED, OUTPUT);
+  pinMode(SEND_SWITCH, INPUT_PULLUP);
+  pinMode(RESET_SWITCH, INPUT_PULLUP);
+  pinMode(ANDREAS_LED, OUTPUT);
+  pinMode(JASPER_LED, OUTPUT);
+  pinMode(BART_LED, OUTPUT);
+
+  attachInterrupt(digitalPinToInterrupt(SEND_SWITCH), sendStateChangeISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(RESET_SWITCH), resetStateChangeISR, CHANGE);
+
+  outgoingMessage.senderID = CENTRAL_ID;
+  outgoingMessage.message = "Call";
+
+  WiFi.mode(WIFI_MODE_STA);     // to start wifi before initialising ESP-NOW is a requirement
+  if (esp_now_init() != ESP_OK) // checking if ESP_NOW successfully started
+  {
+    Serial.println("Error initialising ESP-NOW");
+    return;
+  }
+
+  esp_now_peer_info_t newPeer;                         // creating new peer
+  memcpy(newPeer.peer_addr, macAddressAndreasRoom, 6); // copying given adress into peer_addr
+  newPeer.channel = 0;
+  newPeer.encrypt = false;
+  newPeer.ifidx = WIFI_IF_STA;
+  if (esp_now_add_peer(&newPeer) != ESP_OK) // checking if peer was successfully created
+  {
+    Serial.println("Failed to add Andreas bedroom peer");
+    return;
+  }
+  memcpy(newPeer.peer_addr, macAddressAndreasStudy, 6);
+  if (esp_now_add_peer(&newPeer) != ESP_OK)
+  {
+    Serial.println("Failed to add Andreas study room peer");
+    return;
+  }
+  memcpy(newPeer.peer_addr, macAddressJasper, 6);
+  if (esp_now_add_peer(&newPeer) != ESP_OK)
+  {
+    Serial.println("Failed to add Jasper peer");
+    return;
+  }
+  memcpy(newPeer.peer_addr, macAddressBart, 6);
+  if (esp_now_add_peer(&newPeer) != ESP_OK)
+  {
+    Serial.println("Failed to add Bart peer");
+    return;
+  }
+
+  esp_now_register_send_cb(OnDataSent);
+  esp_now_register_recv_cb(OnDataRecv);
+}
+
+//=========================LOOP=========================
+void loop()
+{
+  stateHandler();
+
+  delay(1);
+}
 
 //-------------------------ISR's-------------------------
 void sendStateChangeISR()
@@ -306,75 +373,11 @@ void stateComplete()
 
 void flashStatusLed(uint8_t flashAmount, uint16_t delayTime)
 {
-  for (uint8_t i = 0; i < flashAmount * 2; i++)
+  for (uint8_t i = 0; i < flashAmount; i++)
   {
-    digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
+    digitalWrite(STATUS_LED, HIGH);
     delay(delayTime);
+    digitalWrite(STATUS_LED, LOW);
+    delay(100);
   }
-}
-
-//=========================SETUP=========================
-
-void setup()
-{
-  Serial.begin(115200);
-  pinMode(STATUS_LED, OUTPUT);
-  pinMode(SEND_SWITCH, INPUT_PULLUP);
-  pinMode(RESET_SWITCH, INPUT_PULLUP);
-  pinMode(ANDREAS_LED, OUTPUT);
-  pinMode(JASPER_LED, OUTPUT);
-  pinMode(BART_LED, OUTPUT);
-
-  attachInterrupt(digitalPinToInterrupt(SEND_SWITCH), sendStateChangeISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(RESET_SWITCH), resetStateChangeISR, CHANGE);
-
-  outgoingMessage.senderID = CENTRAL_ID;
-  outgoingMessage.message = "Call";
-
-  WiFi.mode(WIFI_MODE_STA);     // to start wifi before initialising ESP-NOW is a requirement
-  if (esp_now_init() != ESP_OK) // checking if ESP_NOW successfully started
-  {
-    Serial.println("Error initialising ESP-NOW");
-    return;
-  }
-
-  esp_now_peer_info_t newPeer;                         // creating new peer
-  memcpy(newPeer.peer_addr, macAddressAndreasRoom, 6); // copying given adress into peer_addr
-  newPeer.channel = 0;
-  newPeer.encrypt = false;
-  newPeer.ifidx = WIFI_IF_STA;
-  if (esp_now_add_peer(&newPeer) != ESP_OK) // checking if peer was successfully created
-  {
-    Serial.println("Failed to add Andreas bedroom peer");
-    return;
-  }
-  memcpy(newPeer.peer_addr, macAddressAndreasStudy, 6);
-  if (esp_now_add_peer(&newPeer) != ESP_OK)
-  {
-    Serial.println("Failed to add Andreas study room peer");
-    return;
-  }
-  memcpy(newPeer.peer_addr, macAddressJasper, 6);
-  if (esp_now_add_peer(&newPeer) != ESP_OK)
-  {
-    Serial.println("Failed to add Jasper peer");
-    return;
-  }
-  memcpy(newPeer.peer_addr, macAddressBart, 6);
-  if (esp_now_add_peer(&newPeer) != ESP_OK)
-  {
-    Serial.println("Failed to add Bart peer");
-    return;
-  }
-
-  esp_now_register_send_cb(OnDataSent);
-  esp_now_register_recv_cb(OnDataRecv);
-}
-
-//=========================LOOP=========================
-void loop()
-{
-  stateHandler();
-
-  delay(1);
 }
