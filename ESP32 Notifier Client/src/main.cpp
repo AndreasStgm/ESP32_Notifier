@@ -110,10 +110,6 @@ void shortPressHandler()
   {
     Serial.println("Sending Response");
     esp_now_send(macAddressCentral, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-
-    digitalWrite(LED, !digitalRead(LED));
-    delay(100);
-    digitalWrite(LED, !digitalRead(LED));
   }
 }
 
