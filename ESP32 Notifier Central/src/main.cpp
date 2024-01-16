@@ -47,6 +47,7 @@ const uint8_t macAddressAndreasRoom[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
 const uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
 const uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
 const uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
+const uint8_t macAddressKristiina[] = {0x10, 0x52, 0x1C, 0x64, 0x34, 0x50};
 
 bool responseAndreas = false;
 bool responseJasper = false;
@@ -127,6 +128,12 @@ void setup()
   if (esp_now_add_peer(&newPeer) != ESP_OK)
   {
     Serial.println("Failed to add Bart peer");
+    return;
+  }
+  memcpy(newPeer.peer_addr, macAddressKristiina, 6);
+  if (esp_now_add_peer(&newPeer) != ESP_OK)
+  {
+    Serial.println("Failed to add Kristiina peer");
     return;
   }
 
@@ -313,6 +320,7 @@ void longPressHandler()
       break;
     case JASPER_ID:
       esp_now_send(macAddressJasper, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+      esp_now_send(macAddressKristiina, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
       break;
     case BART_ID:
       esp_now_send(macAddressBart, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
