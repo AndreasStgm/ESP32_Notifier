@@ -360,6 +360,9 @@ void resetHandler()
     oneUserSelectionMode = false;
     currentPositionInArrays = 0;
 
+    sendButtonState = ButtonState::RELEASED;
+    resetButtonState = ButtonState::RELEASED;
+
     stateComplete();
 }
 
