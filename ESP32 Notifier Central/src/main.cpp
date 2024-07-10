@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
-const bool VISITOR_ENABLED = false;
+const bool VISITOR_ENABLED = true;
 
 const uint8_t SEND_SWITCH = 32;
 const uint8_t RESET_SWITCH = 33;
@@ -297,7 +297,7 @@ void shortPressHandler()
     }
     else
     {
-        Serial.println("Sending call to all users.");
+        Serial.println("> Sending call to all users.");
         outgoingMessage.message = "Call";
         esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
     }
@@ -310,7 +310,7 @@ void longPressHandler()
 {
     if (!oneUserSelectionMode)
     {
-        Serial.println("One user send mode started.");
+        Serial.println("> One user send mode started.");
         oneUserSelectionMode = true;
     }
     else
@@ -338,7 +338,7 @@ void longPressHandler()
             break;
         }
 
-        Serial.println("One user send mode ended.");
+        Serial.println("> One user send mode ended.");
         oneUserSelectionMode = false;
         currentPositionInArrays = 0;
     }
@@ -349,7 +349,7 @@ void longPressHandler()
 //-------------------------RESET-------------------------
 void resetHandler()
 {
-    Serial.println("Resetting states");
+    Serial.println("> Resetting states");
 
     outgoingMessage.message = "Reset";
     esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
