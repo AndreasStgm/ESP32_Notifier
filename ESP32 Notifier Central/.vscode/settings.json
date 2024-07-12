@@ -1,13 +1,13 @@
 {
-    "files.associations": {
-        "array": "cpp",
-        "deque": "cpp",
-        "string": "cpp",
-        "unordered_map": "cpp",
-        "unordered_set": "cpp",
-        "vector": "cpp",
-        "initializer_list": "cpp"
-    },
-    "makefile.compileCommandsPath": ".vscode/compile_commands.json",
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\.vscode\\compile_commands.json"
+  "files.associations": {
+    "array": "cpp",
+    "deque": "cpp",
+    "string": "cpp",
+    "unordered_map": "cpp",
+    "unordered_set": "cpp",
+    "vector": "cpp",
+    "initializer_list": "cpp"
+  },
+  "makefile.compileCommandsPath": ".vscode/compile_commands.json",
+  "sonarlint.pathToCompileCommands": "${workspaceFolder}/.vscode/compile_commands.json"
 }
