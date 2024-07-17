@@ -50,6 +50,7 @@ const uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
 const uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
 const uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
 const uint8_t macAddressKristiina[] = {0x10, 0x52, 0x1C, 0x64, 0x34, 0x50};
+const uint8_t macAddressBroadcast[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 bool responseAndreas = false;
 bool responseJasper = false;
@@ -140,6 +141,12 @@ void setup()
             Serial.println("Failed to add Kristiina peer");
             return;
         }
+    }
+    memcpy(newPeer.peer_addr, macAddressBroadcast, 6);
+    if (esp_now_add_peer(&newPeer) != ESP_OK)
+    {
+        Serial.println("Failed to add Broadcast peer");
+        return;
     }
 
     esp_now_register_send_cb(OnDataSent);
@@ -299,7 +306,8 @@ void shortPressHandler()
     {
         Serial.println("> Sending call to all users.");
         outgoingMessage.message = "Call";
-        esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
+        esp_now_send(macAddressBroadcast, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+        // esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
     }
 
     stateComplete();
@@ -352,7 +360,8 @@ void resetHandler()
     Serial.println("> Resetting states");
 
     outgoingMessage.message = "Reset";
-    esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+    esp_now_send(macAddressBroadcast, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+    // esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
     responseAndreas = false;
     responseJasper = false;
     responseBart = false;
