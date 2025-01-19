@@ -2,18 +2,18 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
-const bool VISITOR_ENABLED = true;
+const bool VISITOR_ENABLED = false;
 
 const uint8_t SEND_SWITCH = 32;
 const uint8_t RESET_SWITCH = 33;
 const uint8_t STATUS_LED = 14;
-const uint8_t JASPER_LED = 25;
+const uint8_t EVA_LED = 25;
 const uint8_t ANDREAS_LED = 26;
 const uint8_t BART_LED = 27;
 
 const uint8_t CENTRAL_ID = 0;
 const uint8_t ANDREAS_ID = 1;
-const uint8_t JASPER_ID = 2;
+const uint8_t EVA_ID = 2;
 const uint8_t BART_ID = 3;
 
 enum class ButtonState
@@ -47,9 +47,9 @@ DeviceState currentState = DeviceState::WAITING;
 
 const uint8_t macAddressAndreasRoom[] = {0x30, 0xAE, 0xA4, 0x96, 0xC8, 0x90};
 const uint8_t macAddressAndreasStudy[] = {0x54, 0x43, 0xB2, 0xAB, 0xE9, 0xD0};
-const uint8_t macAddressJasper[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
+const uint8_t macAddressVisitor[] = {0x30, 0xAE, 0xA4, 0x96, 0xEB, 0x48};
 const uint8_t macAddressBart[] = {0x30, 0xAE, 0xA4, 0x9B, 0xB4, 0x14};
-const uint8_t macAddressKristiina[] = {0x10, 0x52, 0x1C, 0x64, 0x34, 0x50};
+const uint8_t macAddressEva[] = {0x10, 0x52, 0x1C, 0x64, 0x34, 0x50};
 
 bool responseAndreas = false;
 bool responseJasper = false;
@@ -58,8 +58,8 @@ bool responseBart = false;
 messageStruct incomingMessage;
 messageStruct outgoingMessage;
 
-const uint8_t ledArray[] = {JASPER_LED, BART_LED, ANDREAS_LED};
-const uint8_t idArray[] = {JASPER_ID, BART_ID, ANDREAS_ID};
+const uint8_t ledArray[] = {EVA_LED, BART_LED, ANDREAS_LED};
+const uint8_t idArray[] = {EVA_ID, BART_ID, ANDREAS_ID};
 uint8_t currentPositionInArrays = 0;
 bool oneUserSelectionMode = false;
 
@@ -88,7 +88,7 @@ void setup()
     pinMode(SEND_SWITCH, INPUT_PULLUP);
     pinMode(RESET_SWITCH, INPUT_PULLUP);
     pinMode(ANDREAS_LED, OUTPUT);
-    pinMode(JASPER_LED, OUTPUT);
+    pinMode(EVA_LED, OUTPUT);
     pinMode(BART_LED, OUTPUT);
 
     attachInterrupt(digitalPinToInterrupt(SEND_SWITCH), sendStateChangeISR, CHANGE);
@@ -120,24 +120,24 @@ void setup()
         Serial.println("Failed to add Andreas study room peer");
         return;
     }
-    memcpy(newPeer.peer_addr, macAddressJasper, 6);
-    if (esp_now_add_peer(&newPeer) != ESP_OK)
-    {
-        Serial.println("Failed to add Jasper peer");
-        return;
-    }
     memcpy(newPeer.peer_addr, macAddressBart, 6);
     if (esp_now_add_peer(&newPeer) != ESP_OK)
     {
         Serial.println("Failed to add Bart peer");
         return;
     }
+    memcpy(newPeer.peer_addr, macAddressEva, 6);
+    if (esp_now_add_peer(&newPeer) != ESP_OK)
+    {
+        Serial.println("Failed to add Kristiina peer");
+        return;
+    }
     if (VISITOR_ENABLED)
     {
-        memcpy(newPeer.peer_addr, macAddressKristiina, 6);
+        memcpy(newPeer.peer_addr, macAddressVisitor, 6);
         if (esp_now_add_peer(&newPeer) != ESP_OK)
         {
-            Serial.println("Failed to add Kristiina peer");
+            Serial.println("Failed to add Jasper peer");
             return;
         }
     }
@@ -236,7 +236,7 @@ void OnDataRecv(const uint8_t *senderMacAddress, const uint8_t *incomingData, in
         Serial.println("Return data received from Andreas");
         responseAndreas = true;
     }
-    else if (incomingMessage.senderID == JASPER_ID && incomingMessage.message == "Response")
+    else if (incomingMessage.senderID == EVA_ID && incomingMessage.message == "Response")
     {
         Serial.println("Return data received from Jasper");
         responseJasper = true;
@@ -301,10 +301,11 @@ void shortPressHandler()
         outgoingMessage.message = "Call";
         esp_now_send(macAddressAndreasRoom, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
         esp_now_send(macAddressAndreasStudy, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-        esp_now_send(macAddressJasper, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
         esp_now_send(macAddressBart, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-        if(VISITOR_ENABLED){
-            esp_now_send(macAddressKristiina, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+        esp_now_send(macAddressEva, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+        if (VISITOR_ENABLED)
+        {
+            esp_now_send(macAddressVisitor, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
         }
         // esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage)); // when peer_addr = 0 -> send to all known peers
     }
@@ -330,15 +331,15 @@ void longPressHandler()
             esp_now_send(macAddressAndreasRoom, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
             esp_now_send(macAddressAndreasStudy, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
             break;
-        case JASPER_ID:
-            esp_now_send(macAddressJasper, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-            if (VISITOR_ENABLED)
-            {
-                esp_now_send(macAddressKristiina, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-            }
-            break;
         case BART_ID:
             esp_now_send(macAddressBart, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+            break;
+        case EVA_ID:
+            esp_now_send(macAddressEva, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+            if (VISITOR_ENABLED)
+            {
+                esp_now_send(macAddressVisitor, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+            }
             break;
         default:
             Serial.println("<One user send switch> default case: you should not be here.");
@@ -361,10 +362,11 @@ void resetHandler()
     outgoingMessage.message = "Reset";
     esp_now_send(macAddressAndreasRoom, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
     esp_now_send(macAddressAndreasStudy, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-    esp_now_send(macAddressJasper, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
     esp_now_send(macAddressBart, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-    if(VISITOR_ENABLED){
-        esp_now_send(macAddressKristiina, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+    esp_now_send(macAddressEva, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+    if (VISITOR_ENABLED)
+    {
+        esp_now_send(macAddressVisitor, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
     }
     // esp_now_send(0, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
     responseAndreas = false;
@@ -391,7 +393,7 @@ void waitingHandler()
     else
     {
         digitalWrite(ANDREAS_LED, responseAndreas);
-        digitalWrite(JASPER_LED, responseJasper);
+        digitalWrite(EVA_LED, responseJasper);
         digitalWrite(BART_LED, responseBart);
     }
 }
